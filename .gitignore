@@ -1,0 +1,8 @@
+DATA/*
+mlruns
+web/__pycache__
+test
+MLFLOW
+models/bk
+DataSet/bk
+web/bk
