@@ -6,3 +6,4 @@ MLFLOW
 models/bk
 DataSet/bk
 web/bk
+./web/static/*
