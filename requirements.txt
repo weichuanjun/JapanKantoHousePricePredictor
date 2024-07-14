@@ -1,0 +1,4 @@
+pandas==2.1.4
+flask==2.2.5
+matplotlib==3.8.0
+joblib==1.2.0

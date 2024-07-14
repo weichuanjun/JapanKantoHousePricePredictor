@@ -1,18 +1,22 @@
 import pandas as pd
 from collections import defaultdict
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, jsonify, Response
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 import joblib
 import os
 from matplotlib.font_manager import FontProperties
+import json
+import ollama
+import logging
 
 app = Flask(__name__)
 
+
 # Ensure the static directory exists
-if not os.path.exists('static'):
-    os.makedirs('static')
+if not os.path.exists('static/charts'):
+    os.makedirs('static/charts')
 
 # Load city to district mapping
 districts_data = pd.read_csv('../DataSet/city_map_all.csv')
@@ -32,15 +36,46 @@ plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
 plt.rcParams['axes.unicode_minus'] = False
 
 
-def calculate_and_plot_stats(df, district_name, station_name, output_dir='./static/'):
-    # Filter data for the specified district
-    df_filtered_district = df[df['地区名'] == district_name].copy()  # 使用 .copy() 避免 SettingWithCopyWarning
-
-    # Filter data for the specified station
+# # 全局变量用于存储会话上下文
+# context_messages = []
+# Ollama 模型
+def query_ollama_model(prompt):
+    japanese_instruction = "以下の質問に対して、日本語で詳しく丁寧に回答してください。must use japanese，no english reply"
+    full_prompt = f"{japanese_instruction}\n\n{prompt}"
+    
+    try:
+        stream = ollama.chat(
+            model='llama3',
+            messages= [{'role': 'user', 'content': full_prompt}],
+            stream=True,
+        )
+        previous_response = ''
+        for chunk in stream:
+            new_content = chunk['message']['content']
+            if new_content != previous_response:
+                previous_response = new_content
+                clean_response = new_content.replace('\r', '') # 确保没有多余的换行符
+                yield f"data: {clean_response}\n\n"
+        # response = ''
+        # for chunk in stream:
+        #     response += chunk['message']['content']
+        #     clean_response = response.replace('\r', '') # 确保没有多余的换行符
+        #     yield f"data: {clean_response}\n\n"
+            # response += chunk['message']['content'] + '\n'
+            # yield f"data: {chunk['message']['content']}\n\n"
+            
+            # clean_response = response.replace('\n', '').replace('\r', '') # 去除换行符
+            # yield f"data: {response}\n\n.encode('utf-8'"
+    except Exception as e:
+        logging.error(f"Error in querying Ollama model: {str(e)}")
+        yield f"data: エラーが発生しました。もう一度お試しください。\n\n"
+    
+def calculate_and_plot_stats(df, district_name, station_name, output_dir='./static/charts/'):
+    df_filtered_district = df[df['地区名'] == district_name].copy()
     df_filtered_station = df[df['最寄駅：名称'] == station_name].copy()  # 使用 .copy() 避免 SettingWithCopyWarning
 
+    #画图
     def plot_stats(df_filtered, name, output_suffix):
-        # Group by '取引時期' and calculate statistics for '取引価格（総額）'
         grouped_price = df_filtered.groupby('取引時期')['取引価格（総額）']
         average_prices = grouped_price.mean() / 10000  # Convert to ten thousand units
         median_prices = grouped_price.median() / 10000  # Convert to ten thousand units
@@ -203,6 +238,7 @@ def home():
             data = data.sort_values(by='取引時期', ascending=False)
             loaded_preprocessor = joblib.load(preprocessor_file)
             loaded_model = joblib.load(model_file)
+            print(data.head())
 
             new_data = pd.DataFrame([query])
             X_test_transformed = loaded_preprocessor.transform(new_data)
@@ -228,7 +264,7 @@ def home():
 
             calculate_and_plot_stats(data, selected_district, selected_station)
             chart_exists = True
-
+            
         except ValueError as e:
             error_message = f"输入错误: {e}"
         except Exception as e:
@@ -246,19 +282,89 @@ def home():
                            error_message=error_message,
                            property_type=property_type,
                            analysis_type=analysis_type,
-                           district_price_trend_path='/static/district_price_trend.png' if chart_exists else '',
-                           district_transaction_volume_path='/static/district_transaction_volume.png' if chart_exists else '',
-                           district_price_distribution_path='/static/district_price_distribution.png' if chart_exists else '',
-                           district_price_per_sqm_trend_path='/static/district_price_per_sqm_trend.png' if chart_exists else '',
+                           district_price_trend_path='/static/charts/district_price_trend.png' if chart_exists else '',
+                           district_transaction_volume_path='/static/charts/district_transaction_volume.png' if chart_exists else '',
+                           district_price_distribution_path='/static/charts/district_price_distribution.png' if chart_exists else '',
+                           district_price_per_sqm_trend_path='/static/charts/district_price_per_sqm_trend.png' if chart_exists else '',
                            
-                           station_price_trend_path='/static/station_price_trend.png' if chart_exists else '',
-                           station_transaction_volume_path='/static/station_transaction_volume.png' if chart_exists else '',
-                           station_price_distribution_path='/static/station_price_distribution.png' if chart_exists else '',
-                           station_price_per_sqm_trend_path='/static/station_price_per_sqm_trend.png' if chart_exists else '',
-                           station_price_distribution_pie_path ='/static/station_price_distribution_pie.png' if chart_exists else '',
-                           district_price_distribution_pie_path ='/static/district_price_distribution_pie.png' if chart_exists else '',
-                           selected_station=selected_station)
+                           station_price_trend_path='/static/charts/station_price_trend.png' if chart_exists else '',
+                           station_transaction_volume_path='/static/charts/station_transaction_volume.png' if chart_exists else '',
+                           station_price_distribution_path='/static/charts/station_price_distribution.png' if chart_exists else '',
+                           station_price_per_sqm_trend_path='/static/charts/station_price_per_sqm_trend.png' if chart_exists else '',
+                           station_price_distribution_pie_path ='/static/charts/station_price_distribution_pie.png' if chart_exists else '',
+                           district_price_distribution_pie_path ='/static/charts/district_price_distribution_pie.png' if chart_exists else '',
+                           selected_station=selected_station
+                           )
 
+# @app.route('/query', methods=['POST'])
+# def handle_query():
+#     prompt = request.json.get('prompt')
+#     return Response(query_ollama_model(prompt), content_type='text/event-stream,charset=utf-8')
+
+# @app.route('/query', methods=['GET'])
+# def stream_response():
+#     prompt = request.args.get('prompt')
+#     return Response(query_ollama_model(prompt), content_type='text/event-stream,charset=utf-8')
+
+
+# @app.route('/query', methods=['POST'])
+# def handle_query():
+#     global context_messages
+#     prompt = request.json.get('prompt')
+#     context_messages.append({'role': 'user', 'content': prompt})
+#     return Response(query_ollama_model(prompt), content_type='text/event-stream; charset=utf-8')
+@app.route('/query', methods=['POST', 'GET'])
+def stream_response():
+    # global context_messages
+    prompt = request.args.get('prompt')
+    # context_messages.append({'role': 'user', 'content': prompt})
+    return Response(query_ollama_model(prompt), content_type='text/event-stream; charset=utf-8')
+
+@app.route('/get_location_data')
+def get_location_data():
+    location_data = json.loads(json.dumps(prefecture_city_district))
+    return jsonify(location_data)
+
+# @app.route('/analyze_area')
+# def analyze_area():
+#     prefecture = request.args.get('prefecture')
+#     city = request.args.get('city')
+#     district = request.args.get('district')
+#     station = request.args.get('station')
+
+#     analysis_prompt = f"""
+#     以下の地域について日本語で詳しく分析してください:
+#     都道府県: {prefecture}
+#     市区町村: {city}
+#     地区: {district}
+#     最寄駅: {station}
+
+#     以下の点について情報を提供してください:
+#     1. この地域の周辺環境
+#     2. 居住に適しているかどうか、その理由
+#     3. この地域の歴史的背景
+#     4. 利用可能な商業施設
+#     5. 交通の便
+#     6. その他の特筆すべき特徴
+
+#     できるだけ具体的で詳細な情報を提供し、地域の魅力や課題についても言及してください。
+#     答えは全部日本語で話して下さい、英語はだめ！
+#     """
+#     logging.info(f"1111111111Received analyze area prompt: {analysis_prompt}")
+#     def generate():
+#         try:
+#             stream = ollama.chat(
+#                 model='llama3',
+#                 messages=[{'role': 'user', 'content': analysis_prompt}],
+#                 stream=True,
+#             )
+#             for chunk in stream:
+#                 yield f"data: {chunk['message']['content']}\n\n"
+#         except Exception as e:
+#             yield f"data: エラーが発生しました: {str(e)}\n\n"
+
+#     return Response(generate(), content_type='text/event-stream')
+    
 if __name__ == '__main__':
     app.run(debug=True, port=8070)
 
