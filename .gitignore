@@ -7,3 +7,4 @@ models/bk
 DataSet/bk
 web/bk
 web/static/charts/*
+models/xgboost_model_masion.pkl
