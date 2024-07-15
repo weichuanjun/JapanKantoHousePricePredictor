@@ -69,7 +69,7 @@ h2 {
     /* 确保容器高度自适应内容 */
     flex: 1;
     /* 使容器在flex布局中占据相同的高度 */
-    max-height: 977px;
+    max-height: 963px;
 }
 
 input,

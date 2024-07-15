@@ -323,7 +323,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
         eventSource.onmessage = function (event) {
             accumulatedResponse += event.data;
-            const formattedResponse = accumulatedResponse.replace(/(\d+\.)/g, '\n$1');
+            const formattedResponse = accumulatedResponse
+                // .replace(/(\d+\..+?):/g, '\n$1\n')// 在匹配到的数字加点加文字加冒号前后插入换行符
+                // .replace(/(\d+\.)/g, '\n$1')
+                .replace(/(\*\*[^*]+\*\*)/g, '\n$1\n');
+
+            // const formattedResponse = accumulatedResponse
+            //     .replace(/(\*\*[^*]+\*\*)/g, '\n$1\n')   // 在匹配到的**任何文字**前后插入换行符
+            //     // .replace(/(\*[^*]+\*)/g, '\n$1\n')       // 在匹配到的*任何文字*前后插入换行符
+            //     .replace(/(\d+\..+?):/g, '\n$1:\n');     // 在匹配到的数字加点加文字加冒号前后插入换行符
+
+            // const formattedResponse = accumulatedResponse.replace(/(\*\*[^*]+\*\*)/g, '\n$1\n'); // 在匹配到的**任何文字**前后插入换行符
+            // const formattedResponse = accumulatedResponse.replace(/(\d+\.)/g, '\n$1');
             responseEntry.innerHTML = marked(formattedResponse); // 实时更新响应内容，将Markdown内容转换为HTML
             responseContainer.scrollTop = responseContainer.scrollHeight; // 滚动到底部
         };
@@ -382,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const prompt = `答えは全て日本語で、英語を利用しないでください。英語を利用したい場合、結果を日本語に通訳して下さい。以下の地域について分析してください：都道府県: ${prefecture}， 市区町村: ${city}，地区: ${district}，最寄駅: ${station}。この地域について、以下の点を含めて詳しく分析してください：1. 周辺環境，2. 生活の利便性，3. 交通アクセス，4. 地域の特徴や魅力，5. 住宅市場の傾向，家賃の相場 6. 将来の発展性。 できるだけ具体的な情報を提供する、`;
+            const prompt = `答えは全て日本語で、英語を利用しないでください。英語を利用したい場合、結果を日本語に通訳して下さい。以下の地域について分析してください：都道府県: ${prefecture}， 市区町村: ${city}，地区: ${district}，最寄駅: ${station}。この地域について、以下の点を含めて詳しく分析してください：周辺環境，生活の利便性交通アクセス，地域の特徴や魅力，住宅市場の傾向，家賃の相場 将来の発展性。できるだけ具体的な情報を提供する、`;
             sendPromptToLlama(prompt);
         });
     }

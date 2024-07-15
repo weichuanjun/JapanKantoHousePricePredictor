@@ -13,7 +13,6 @@ import logging
 
 app = Flask(__name__)
 
-
 # Ensure the static directory exists
 if not os.path.exists('static/charts'):
     os.makedirs('static/charts')
@@ -54,7 +53,8 @@ def query_ollama_model(prompt):
             new_content = chunk['message']['content']
             if new_content != previous_response:
                 previous_response = new_content
-                clean_response = new_content.replace('\r', '') # 确保没有多余的换行符
+                # clean_response = new_content.replace('\r', '') # 确保没有多余的换行符
+                clean_response = new_content # 确保没有多余的换行符
                 yield f"data: {clean_response}\n\n"
         # response = ''
         # for chunk in stream:
